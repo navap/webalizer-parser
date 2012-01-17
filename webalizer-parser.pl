@@ -9,20 +9,39 @@ use Data::Dumper;
 # Use your own path!
 my $path = '/home/navap/www/webalizer-parser/logs';
 
-my %stats;
+my %monthly;
+my %annualy;
 
 opendir (DIR, $path) or die "Couldn't open file: $!";
 my @files = grep {/usage_[0-9]{6}\.html/}  readdir DIR;
 close DIR;
 foreach my $month (@files) {
   open (FILE, $path . "/" . $month) or die "$!";
-  while (<FILE>){ 
+  while (<FILE>){
     my $html = join ("", <FILE>);
     $month =~ s/usage_([0-9]{6})\.html/$1/g;
-    $stats{$month} = parse_html($html);
+    $monthly{$month} = parse_html($html);
   }
   close (FILE);
 }
+
+foreach my $month (keys %monthly) {
+  foreach my $group ( keys %{ $monthly{$month} }) {
+    foreach my $value ( keys %{ $monthly{$month}{$group} }) {
+      if( exists $annualy{$group}{$value} ) {
+        warn "Key [$value] is in both hashes!";
+        $annualy{$group}{$value} += $monthly{$month}{$group}{$value};
+        next;
+      }
+      else {
+        $annualy{$group}{$value} = $monthly{$month}{$group}{$value};
+      }
+    }
+  }
+}
+
+print Dumper(\%annualy);
+#print Dumper(\%monthly);
 
 sub parse_html {
   my $html = shift;
@@ -33,7 +52,7 @@ sub parse_html {
   my %stats = (
     hits => {
       total     => get_value($te, 0,3,1),
-      per_hour  => get_value($te, 0,19,1),
+#      per_hour  => get_value($te, 0,19,1),
     },
     response_codes => {
       '000' => get_value($te, 0,30,1),
@@ -68,5 +87,3 @@ sub parse_table {
 
   return \%hash;
 }
-
-print Dumper(\%stats);
