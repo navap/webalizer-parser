@@ -60,22 +60,24 @@ sub compile_annual {
 }
 
 sub generate_report {
-  print join ("\t",('Month', 'Total Hits','Total WS Hits','ws/recording','ws/release','ws/release-group','ws/artist','Hits per Hour')) . "\n";
+  print join ("\t",('Month', 'Total Hits','Web Hits','Total WS Hits','RDF','ws/1/track','ws/1/release','ws/1/artist','ws/1/release-group','ws/2/recording','ws/2/release','ws/2/artist','ws/2/release-group','Hits per Hour')) . "\n";
 
   foreach my $month (sort keys %monthly) {
     my $totalhits       = $monthly{$month}{'hits'}{'total'};
     my $hitsperhour     = $monthly{$month}{'hits'}{'per_hour'};
-    my $webhits         = $monthly{$month}{'urls'}{'Web Service'};
-    my $wsrecording     = $monthly{$month}{'urls'}{'/ws/1/track/'} + $monthly{$month}{'urls'}{'/ws/2/recording/'} +
-                          $monthly{$month}{'urls'}{'/ws/1/track'} + $monthly{$month}{'urls'}{'/ws/2/recording'};
-    my $wsrelease       = $monthly{$month}{'urls'}{'/ws/1/release/'} + $monthly{$month}{'urls'}{'/ws/2/release/'} +
-                          $monthly{$month}{'urls'}{'/ws/1/release'} + $monthly{$month}{'urls'}{'/ws/2/release'};
-    my $wsreleasegroup  = $monthly{$month}{'urls'}{'/ws/1/release-group/'} + $monthly{$month}{'urls'}{'/ws/2/release-group/'} +
-                          $monthly{$month}{'urls'}{'/ws/1/release-group'} + $monthly{$month}{'urls'}{'/ws/2/release-group'};
-    my $wsartist        = $monthly{$month}{'urls'}{'/ws/1/artist/'} + $monthly{$month}{'urls'}{'/ws/2/artist/'} +
-                          $monthly{$month}{'urls'}{'/ws/1/artist'} + $monthly{$month}{'urls'}{'/ws/2/artist'};
+    my $wshits          = $monthly{$month}{'urls'}{'Web Service'};
+    my $webhits         = $totalhits - $wshits;
+    my $rdf             = $monthly{$month}{'urls'}{'/cgi-bin/mq_2_1.pl'} + 0;
+    my $wsrecording     = $monthly{$month}{'urls'}{'/ws/1/track/'} + $monthly{$month}{'urls'}{'/ws/1/track'};
+    my $ws2recording    = $monthly{$month}{'urls'}{'/ws/2/recording/'} + $monthly{$month}{'urls'}{'/ws/2/recording'};
+    my $wsrelease       = $monthly{$month}{'urls'}{'/ws/1/release/'} + $monthly{$month}{'urls'}{'/ws/1/release'};
+    my $ws2release      = $monthly{$month}{'urls'}{'/ws/2/release/'} + $monthly{$month}{'urls'}{'/ws/2/release'};
+    my $wsreleasegroup  = $monthly{$month}{'urls'}{'/ws/1/release-group/'} + $monthly{$month}{'urls'}{'/ws/1/release-group'};
+    my $ws2releasegroup = $monthly{$month}{'urls'}{'/ws/2/release-group/'} + $monthly{$month}{'urls'}{'/ws/2/release-group'};
+    my $wsartist        = $monthly{$month}{'urls'}{'/ws/1/artist/'} + $monthly{$month}{'urls'}{'/ws/1/artist'};
+    my $ws2artist       = $monthly{$month}{'urls'}{'/ws/2/artist/'} + $monthly{$month}{'urls'}{'/ws/2/artist'};
 
-    print join("\t",($month, $totalhits, $webhits, $wsrecording, $wsrelease, $wsreleasegroup, $wsartist, $hitsperhour));
+    print join("\t",($month, $totalhits, $webhits, $wshits, $rdf, $wsrecording, $wsrelease, $wsartist, $wsreleasegroup, $ws2recording, $ws2release, $ws2artist, $ws2releasegroup, $hitsperhour));
     print "\n";
   }
 }
