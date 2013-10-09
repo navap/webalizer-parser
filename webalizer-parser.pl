@@ -1,43 +1,191 @@
 #!/usr/bin/perl
-use warnings;
+#use warnings;
 use strict;
 
 use HTML::TableExtract;
 use HTML::Parser;
 use Data::Dumper;
+use JSON;
+use Text::CSV::Slurp;
 $Data::Dumper::Sortkeys = \&sort_filter;
 
 
 # Use your own path!
-my $year = '2011';
-my $path = '/home/navap/www/webalizer-parser/logs/';
+my $year = '2012';
+my $month = '201201';
+my $path = 'logs/';
 
 my %monthly;
 my %annualy;
 
-initialize();
+# Read in raw data from files
+import_data();
 
 ## Output annual values
 #compile_annual();
 
 ## Output stats by month
-#print Dumper(\%monthly);
+# print Dumper($monthly{201201});
+# my $json_text = to_json(\%monthly);
+# print $json_text;
 
-## Output the important stats as a tab separated table
-generate_report();
+output_csv();
 
-sub initialize {
+sub import_data {
   opendir (DIR, $path) or die "Couldn't open file: $!";
-  my @files = grep {/usage_$year[0-9]{2}\.html/}  readdir DIR;
+  my @files = grep {/usage_[0-9]{6}\.html/}  readdir DIR;
   close DIR;
-  foreach my $month (@files) {
+
+  my @sorted_files = sort @files;
+
+  foreach my $month (@sorted_files) {
     open (FILE, $path . "/" . $month) or die "$!";
     while (<FILE>){
       my $html = join ("", <FILE>);
       $month =~ s/usage_([0-9]{6})\.html/$1/g;
-      $monthly{$month} = parse_html($html);
+      $monthly{$month}{'raw'} = parse_html($html);
     }
     close (FILE);
+
+    my $totalhits       = $monthly{$month}{'raw'}{'hits'}{'total'};
+    my $hitsperhour     = $monthly{$month}{'raw'}{'hits'}{'per_hour'};
+    my $wstotal         = $monthly{$month}{'raw'}{'urls'}{'Web Service'};
+    my $rdf             = $monthly{$month}{'raw'}{'urls'}{'/cgi-bin/mq_2_1.pl'} + 0;
+    my $ws1recording    = $monthly{$month}{'raw'}{'urls'}{'/ws/1/track/'} + $monthly{$month}{'raw'}{'urls'}{'/ws/1/track'};
+    my $ws2recording    = $monthly{$month}{'raw'}{'urls'}{'/ws/2/recording/'} + $monthly{$month}{'raw'}{'urls'}{'/ws/2/recording'};
+    my $ws1release      = $monthly{$month}{'raw'}{'urls'}{'/ws/1/release/'} + $monthly{$month}{'raw'}{'urls'}{'/ws/1/release'};
+    my $ws2release      = $monthly{$month}{'raw'}{'urls'}{'/ws/2/release/'} + $monthly{$month}{'raw'}{'urls'}{'/ws/2/release'};
+    my $ws1releasegroup = $monthly{$month}{'raw'}{'urls'}{'/ws/1/release-group/'} + $monthly{$month}{'raw'}{'urls'}{'/ws/1/release-group'};
+    my $ws2releasegroup = $monthly{$month}{'raw'}{'urls'}{'/ws/2/release-group/'} + $monthly{$month}{'raw'}{'urls'}{'/ws/2/release-group'};
+    my $ws1artist       = $monthly{$month}{'raw'}{'urls'}{'/ws/1/artist/'} + $monthly{$month}{'raw'}{'urls'}{'/ws/1/artist'};
+    my $ws2artist       = $monthly{$month}{'raw'}{'urls'}{'/ws/2/artist/'} + $monthly{$month}{'raw'}{'urls'}{'/ws/2/artist'};
+
+    my $s2xx = $monthly{$month}{'raw'}{'response_codes'}{'Code 200 - OK'} + 
+        $monthly{$month}{'raw'}{'response_codes'}{'Code 206 - Partial Content'};
+    my $s3xx = $monthly{$month}{'raw'}{'response_codes'}{'Code 301 - Moved Permanently'} + 
+        $monthly{$month}{'raw'}{'response_codes'}{'Code 302 - Found'} +
+        $monthly{$month}{'raw'}{'response_codes'}{'Code 303 - See Other'} + 
+        $monthly{$month}{'raw'}{'response_codes'}{'Code 304 - Not Modified'};
+    my $s4xx = $monthly{$month}{'raw'}{'response_codes'}{'Code 400 - Bad Request'} + 
+        $monthly{$month}{'raw'}{'response_codes'}{'Code 401 - Unauthorized'} +
+        $monthly{$month}{'raw'}{'response_codes'}{'Code 403 - Forbidden'} + 
+        $monthly{$month}{'raw'}{'response_codes'}{'Code 404 - Not Found'} + 
+        $monthly{$month}{'raw'}{'response_codes'}{'Code 405 - Method Not Allowed'} + 
+        $monthly{$month}{'raw'}{'response_codes'}{'Code 408 - Request Timeout'} + 
+        $monthly{$month}{'raw'}{'response_codes'}{'Code 411 - Length Required'} + 
+        $monthly{$month}{'raw'}{'response_codes'}{'Code 413 - Request Entity Too Large'} +
+        $monthly{$month}{'raw'}{'response_codes'}{'Code 415 - Unsupported Media Type'} + 
+        $monthly{$month}{'raw'}{'response_codes'}{'Code 416 - Requested Range Not Satisfiable'};
+    my $s5xx = $monthly{$month}{'raw'}{'response_codes'}{'Code 500 - Internal Server Error'} + 
+        $monthly{$month}{'raw'}{'response_codes'}{'Code 502 - Bad Gateway'} +
+        $monthly{$month}{'raw'}{'response_codes'}{'Code 503 - Service Unavailable'} + 
+        $monthly{$month}{'raw'}{'response_codes'}{'Code 504 - Gateway Timeout'};
+    my $s404 = $monthly{$month}{'raw'}{'response_codes'}{'Code 404 - Not Found'};
+    my $s500 = $monthly{$month}{'raw'}{'response_codes'}{'Code 500 - Internal Server Error'};
+    my $s503 = $monthly{$month}{'raw'}{'response_codes'}{'Code 503 - Service Unavailable'};
+
+    $monthly{$month}{'derived'} = {
+      'Hits' => {
+        'Total'             => $totalhits,
+        'Hits per Hour'     => $hitsperhour,
+        'Hits per Second'   => int( ($hitsperhour / (60 * 60)) + 0.5),
+        'Web'               => $totalhits - $wstotal,
+        'WS'                => $wstotal,
+        'WS %'              => int( ($wstotal / $totalhits * 100) + 0.5),
+        'RDF'               => $rdf,
+        'WS1' => {
+          'Track'           => $ws1recording,
+          'Release'         => $ws1release,
+          'Release Group'   => $ws1releasegroup,
+          'Artist'          => $ws1artist,
+        },
+        'WS2' => {
+          'Recording'       => $ws2recording,
+          'Release'         => $ws2release,
+          'Release Group'   => $ws2releasegroup,
+          'Artist'          => $ws2artist,
+        },
+        'WSX' => {
+          'Recording'       => $ws1recording + $ws2recording,
+          'Release'         => $ws1release + $ws2release,
+          'Release Group'   => $ws1releasegroup + $ws2releasegroup,
+          'Artist'          => $ws1artist + $ws2artist,
+        }
+      },
+      'Status Codes' => {
+        '2xx' => $s2xx,
+        '3xx' => $s3xx,
+        '4xx' => $s4xx,
+        '5xx' => $s5xx,
+        '404' => $s404,
+        '500' => $s500,
+        '503' => $s503
+      }
+    };
+  }
+}
+
+sub output_csv {
+  # Column headers
+  print join (",",(
+    'Month', 
+    'Total Hits',
+
+    'Web Hits',
+    'Total WS Hits',
+    'WS %',
+
+    'ws/x/recording',
+    'ws/x/release',
+    'ws/x/artist',
+    'ws/x/release-group',
+
+    'ws/1/track',
+    'ws/1/release',
+    'ws/1/artist',
+    'ws/1/release-group',
+
+    'ws/2/recording',
+    'ws/2/release',
+    'ws/2/artist',
+    'ws/2/release-group',
+
+    'RDF',
+    'Hits per Hour',
+    'Hits per Second'
+  ));
+  print "\n";
+
+  # Row data
+  foreach my $month (sort keys %monthly) {
+    print join (",",(
+      $month,
+      $monthly{$month}{'derived'}{'Hits'}{'Total'},
+
+      $monthly{$month}{'derived'}{'Hits'}{'Web'},
+      $monthly{$month}{'derived'}{'Hits'}{'WS'},
+      $monthly{$month}{'derived'}{'Hits'}{'WS %'},
+
+      $monthly{$month}{'derived'}{'Hits'}{'WSX'}{'Recording'},
+      $monthly{$month}{'derived'}{'Hits'}{'WSX'}{'Release'},
+      $monthly{$month}{'derived'}{'Hits'}{'WSX'}{'Release Group'},
+      $monthly{$month}{'derived'}{'Hits'}{'WSX'}{'Artist'},
+
+      $monthly{$month}{'derived'}{'Hits'}{'WS1'}{'Track'},
+      $monthly{$month}{'derived'}{'Hits'}{'WS1'}{'Release'},
+      $monthly{$month}{'derived'}{'Hits'}{'WS1'}{'Release Group'},
+      $monthly{$month}{'derived'}{'Hits'}{'WS1'}{'Artist'},
+
+      $monthly{$month}{'derived'}{'Hits'}{'WS2'}{'Recording'},
+      $monthly{$month}{'derived'}{'Hits'}{'WS2'}{'Release'},
+      $monthly{$month}{'derived'}{'Hits'}{'WS2'}{'Release Group'},
+      $monthly{$month}{'derived'}{'Hits'}{'WS2'}{'Artist'},
+
+      $monthly{$month}{'derived'}{'Hits'}{'RDF'},
+      $monthly{$month}{'derived'}{'Hits'}{'Hits per Hour'},
+      $monthly{$month}{'derived'}{'Hits'}{'Hits per Second'}
+    ));
+    print "\n";   
   }
 }
 
@@ -60,46 +208,27 @@ sub compile_annual {
 }
 
 sub generate_report {
-  print join ("\t",('Month', 'Total Hits','Web Hits','Total WS Hits','RDF','ws/1/track','ws/1/release','ws/1/artist','ws/1/release-group','ws/2/recording','ws/2/release','ws/2/artist','ws/2/release-group','Hits per Hour')) . "\n";
 
-  foreach my $month (sort keys %monthly) {
-    my $totalhits       = $monthly{$month}{'hits'}{'total'};
-    my $hitsperhour     = $monthly{$month}{'hits'}{'per_hour'};
-    my $wshits          = $monthly{$month}{'urls'}{'Web Service'};
-    my $webhits         = $totalhits - $wshits;
-    my $rdf             = $monthly{$month}{'urls'}{'/cgi-bin/mq_2_1.pl'} + 0;
-    my $wsrecording     = $monthly{$month}{'urls'}{'/ws/1/track/'} + $monthly{$month}{'urls'}{'/ws/1/track'};
-    my $ws2recording    = $monthly{$month}{'urls'}{'/ws/2/recording/'} + $monthly{$month}{'urls'}{'/ws/2/recording'};
-    my $wsrelease       = $monthly{$month}{'urls'}{'/ws/1/release/'} + $monthly{$month}{'urls'}{'/ws/1/release'};
-    my $ws2release      = $monthly{$month}{'urls'}{'/ws/2/release/'} + $monthly{$month}{'urls'}{'/ws/2/release'};
-    my $wsreleasegroup  = $monthly{$month}{'urls'}{'/ws/1/release-group/'} + $monthly{$month}{'urls'}{'/ws/1/release-group'};
-    my $ws2releasegroup = $monthly{$month}{'urls'}{'/ws/2/release-group/'} + $monthly{$month}{'urls'}{'/ws/2/release-group'};
-    my $wsartist        = $monthly{$month}{'urls'}{'/ws/1/artist/'} + $monthly{$month}{'urls'}{'/ws/1/artist'};
-    my $ws2artist       = $monthly{$month}{'urls'}{'/ws/2/artist/'} + $monthly{$month}{'urls'}{'/ws/2/artist'};
-
-    print join("\t",($month, $totalhits, $webhits, $wshits, $rdf, $wsrecording, $wsrelease, $wsartist, $wsreleasegroup, $ws2recording, $ws2release, $ws2artist, $ws2releasegroup, $hitsperhour));
-    print "\n";
-  }
 }
 
 
 #search('2011','Web Service');
 
-sub search {
-  my ($year, @items) = @_;
-  my %search_results;
-
-  foreach my $item (@items) {
-    foreach my $month (keys %monthly) {
-      foreach my $group (keys %{ $monthly{$month} }) {
-        if ($monthly{$month}{$group}{$item}) {
-          $search_results{$month}{$group}{$item} = $monthly{$month}{$group}{$item};
-        }
-      }
-    }
-  }
-  print Dumper(\%search_results);
-}
+#sub search {
+#  my ($year, @items) = @_;
+#  my %search_results;
+#
+#  foreach my $item (@items) {
+#    foreach my $month (keys %monthly) {
+#      foreach my $group (keys %{ $monthly{$month} }) {
+#        if ($monthly{$month}{$group}{$item}) {
+#          $search_results{$month}{$group}{$item} = $monthly{$month}{$group}{$item};
+#        }
+#      }
+#    }
+#  }
+#  print Dumper(\%search_results);
+#}
 
 sub parse_html {
   my $html = shift;
@@ -108,13 +237,13 @@ sub parse_html {
   $te->parse($html);
 
   my %stats = (
-    hits => {
-      total     => get_value($te, 0,3,1),
-      per_hour  => get_value($te, 0,19,1),
+    'hits' => {
+      'total'     => get_value($te, 0,3,1),
+      'per_hour'  => get_value($te, 0,19,1),
     },
-    response_codes => parse_table($te,0,0,1,30,50),
-    urls      => parse_table($te,3,9,1),
-    countries => parse_table($te,13,11,1),
+    'response_codes' => parse_table($te,0,0,1,30,50),
+    'urls'      => parse_table($te,3,9,1),
+    'countries' => parse_table($te,13,11,1),
   );
 
   return \%stats;
