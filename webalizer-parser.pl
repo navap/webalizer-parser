@@ -133,7 +133,7 @@ sub output_csv {
 
     'Web Hits',
     'Total WS Hits',
-    'WS %',
+    'RDF',
 
     'ws/x/recording',
     'ws/x/release',
@@ -150,9 +150,9 @@ sub output_csv {
     'ws/2/artist',
     'ws/2/release-group',
 
-    'RDF',
     'Hits per Hour',
-    'Hits per Second'
+    'Hits per Second',
+    'WS %'
   ));
   print "\n";
 
@@ -164,7 +164,7 @@ sub output_csv {
 
       $monthly{$month}{'derived'}{'Hits'}{'Web'},
       $monthly{$month}{'derived'}{'Hits'}{'WS'},
-      $monthly{$month}{'derived'}{'Hits'}{'WS %'},
+      $monthly{$month}{'derived'}{'Hits'}{'RDF'},
 
       $monthly{$month}{'derived'}{'Hits'}{'WSX'}{'Recording'},
       $monthly{$month}{'derived'}{'Hits'}{'WSX'}{'Release'},
@@ -173,17 +173,17 @@ sub output_csv {
 
       $monthly{$month}{'derived'}{'Hits'}{'WS1'}{'Track'},
       $monthly{$month}{'derived'}{'Hits'}{'WS1'}{'Release'},
-      $monthly{$month}{'derived'}{'Hits'}{'WS1'}{'Release Group'},
       $monthly{$month}{'derived'}{'Hits'}{'WS1'}{'Artist'},
+      $monthly{$month}{'derived'}{'Hits'}{'WS1'}{'Release Group'},
 
       $monthly{$month}{'derived'}{'Hits'}{'WS2'}{'Recording'},
       $monthly{$month}{'derived'}{'Hits'}{'WS2'}{'Release'},
       $monthly{$month}{'derived'}{'Hits'}{'WS2'}{'Release Group'},
       $monthly{$month}{'derived'}{'Hits'}{'WS2'}{'Artist'},
 
-      $monthly{$month}{'derived'}{'Hits'}{'RDF'},
       $monthly{$month}{'derived'}{'Hits'}{'Hits per Hour'},
-      $monthly{$month}{'derived'}{'Hits'}{'Hits per Second'}
+      $monthly{$month}{'derived'}{'Hits'}{'Hits per Second'},
+      $monthly{$month}{'derived'}{'Hits'}{'WS %'}
     ));
     print "\n";   
   }
